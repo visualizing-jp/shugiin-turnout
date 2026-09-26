@@ -3,7 +3,7 @@
  *
  * - 兄弟サイトでは色相を党に使う。このサイトに党は出ないので、男女計は無彩色（墨）、
  *   男女は兄弟サイトの性別の内訳と同じ Okabe–Ito の2色（男性 空色・女性 朱色）にする。
- * - 明度は量だけを表す。地図の投票率→明度は、全回・全都道府県・男女で共通の関数（rateColor）。
+ * - 明度は量だけを表す。地図の投票率→明度は、目盛り（全回共通かその回の範囲）の上で全都道府県共通の関数（rateColor）。
  * - 彩度は sRGB の色域に収めるためだけに下げる。
  */
 
@@ -40,15 +40,21 @@ export function toneOf(hex: string | null): Tone {
   return { base: hex, faded: fit(h, c * 0.3, l + (94 - l) * 0.7), hue: h };
 }
 
-/** 地図の塗りの目盛り。全回の都道府県・男女の投票率（45〜80%）が収まる幅で固定する。 */
-export const RATE_DOMAIN = [0.4, 0.8] as const;
+export type Domain = readonly [number, number];
+
+/** 全回共通の目盛り。全回の都道府県・男女の投票率（45〜80%）と全国の投票率（53〜77%）が収まる幅。 */
+export const RATE_DOMAIN: Domain = [0.4, 0.8];
+
+/** その回の値の範囲を、外側の整数の百分率に丸めた目盛り。 */
+export function roundDomain(rates: number[]): Domain {
+  return [Math.floor(Math.min(...rates) * 100) / 100, Math.ceil(Math.max(...rates) * 100) / 100];
+}
 
 /** 目盛りの下端 → 明度 96（紙色に近い）、上端 → 28。 */
 const L_LOW = 96;
 const L_HIGH = 28;
 
-export function rateColor(hue: number | null, rate: number): string {
-  const [lo, hi] = RATE_DOMAIN;
+export function rateColor(hue: number | null, rate: number, [lo, hi]: Domain): string {
   const v = Math.min(1, Math.max(0, (rate - lo) / (hi - lo)));
   const l = L_LOW + (L_HIGH - L_LOW) * v;
   const c = hue === null ? 0 : 12 + 48 * Math.min(1, v / 0.5);

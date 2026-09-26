@@ -1,9 +1,10 @@
 /**
- * 都道府県のタイル地図。投票率で塗る。明度は投票率（全回・全都道府県・男女で共通の目盛り）、色相は男女。
+ * 都道府県のタイル地図。投票率で塗る。明度は投票率（目盛りは呼び出し側が決める）、色相は男女。
  * 配置は兄弟サイト（election-shugiin-timeseries・candidates）と同じ。
  */
 
-import { RATE_DOMAIN, rateColor } from "../../lib/data/palette.ts";
+import { rateColor, type Domain } from "../../lib/data/palette.ts";
+import { useWidth } from "../hooks/useWidth.ts";
 
 const LAYOUT = [
   "........................01",
@@ -23,6 +24,8 @@ const LAYOUT = [
 ];
 
 const COLS = 13;
+const GAP = 3;
+const MAX_WIDTH = 640;
 
 export interface Tile {
   code: string;
@@ -61,6 +64,7 @@ export function TileMap({
   pinned,
   onPin,
   legend,
+  domain,
 }: {
   tiles: Tile[];
   /** 男女の色相。男女計は null（無彩色）。 */
@@ -68,21 +72,29 @@ export function TileMap({
   pinned: string | null;
   onPin: (code: string | null) => void;
   legend: { title: string; note: string };
+  domain: Domain;
 }) {
   const byCode = new Map(tiles.map((t) => [t.code, t]));
-  const color = (rate: number) => rateColor(hue, rate);
+  const color = (rate: number) => rateColor(hue, rate, domain);
+  const [ref, width] = useWidth<HTMLDivElement>();
+  // 地図は画面の幅に合わせて縮める。タイルに「56.26」と県名が入らない幅では、県名を省き投票率を整数で書く。
+  const tileSize = (Math.min(width, MAX_WIDTH) - GAP * (COLS - 1)) / COLS;
+  const compact = width > 0 && tileSize < 30;
 
   return (
-    <div className="mx-[-0.5rem] overflow-x-auto px-2">
+    <div ref={ref}>
       <div
-        className="grid aspect-[13/14] max-w-[640px] min-w-[440px] gap-[3px]"
+        className="grid aspect-[13/14] w-full"
         style={{
+          maxWidth: MAX_WIDTH,
+          gap: GAP,
           gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))`,
           gridTemplateRows: `repeat(${LAYOUT.length}, minmax(0, 1fr))`,
         }}
       >
-        <div className="flex flex-col justify-start pt-1" style={{ gridColumn: "1 / 8", gridRow: "1 / 5" }}>
-          <Legend color={color} {...legend} />
+        {/* 凡例は左上の空き（1〜7列 × 1〜7行）に置く。 */}
+        <div className="flex flex-col justify-start pt-1" style={{ gridColumn: "1 / 8", gridRow: "1 / 8" }}>
+          <Legend color={color} domain={domain} {...legend} />
         </div>
         {LAYOUT.flatMap((row, r) =>
           Array.from({ length: COLS }, (_, c) => {
@@ -104,8 +116,12 @@ export function TileMap({
                 }`}
                 style={{ gridColumn: c + 1, gridRow: r + 1, backgroundColor: bg }}
               >
-                <span className={`text-[9.5px] leading-tight ${dark ? "text-white/80" : "text-ink/70"}`}>{short(tile.label)}</span>
-                <span className={`tnum text-[11px] leading-tight font-medium ${dark ? "text-white" : ""}`}>{tile.text}</span>
+                {!compact && (
+                  <span className={`text-[9.5px] leading-tight ${dark ? "text-white/80" : "text-ink/70"}`}>{short(tile.label)}</span>
+                )}
+                <span className={`tnum leading-tight font-medium ${compact ? "text-[10px]" : "text-[11px]"} ${dark ? "text-white" : ""}`}>
+                  {compact ? Math.round(tile.rate * 100) : tile.text}
+                </span>
               </button>
             );
           }),
@@ -115,8 +131,17 @@ export function TileMap({
   );
 }
 
-function Legend({ color, title, note }: { color: (rate: number) => string; title: string; note: string }) {
-  const [lo, hi] = RATE_DOMAIN;
+function Legend({
+  color,
+  domain: [lo, hi],
+  title,
+  note,
+}: {
+  color: (rate: number) => string;
+  domain: Domain;
+  title: string;
+  note: string;
+}) {
   const stops = Array.from({ length: 11 }, (_, i) => `${color(lo + ((hi - lo) * i) / 10)} ${i * 10}%`).join(", ");
   return (
     <div className="max-w-[240px] text-[10.5px] leading-relaxed text-muted">

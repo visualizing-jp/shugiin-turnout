@@ -17,7 +17,6 @@ export function AgePanels({
   total,
   focused,
   onFocus,
-  selected,
 }: {
   elections: number[];
   groups: string[];
@@ -26,20 +25,18 @@ export function AgePanels({
   total: number[];
   focused: number;
   onFocus: (n: number) => void;
-  selected: string;
 }) {
   const fi = elections.indexOf(focused);
   return (
-    <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2">
+    // 7つの年代。広い画面では4列（4 + 3）にして、1つだけ余る段を作らない。
+    <div className="grid gap-x-6 gap-y-5 sm:grid-cols-2 xl:grid-cols-4">
       {groups.map((g, i) => {
         const r = rates[i]![fi];
         return (
           <section
             key={g}
             aria-label={`${g}の投票率の推移`}
-            className={`min-w-0 rounded-md px-2 pt-1.5 pb-1 transition-[box-shadow] duration-150 ${
-              g === selected ? "shadow-[0_0_0_1.5px_var(--color-ink)]" : "shadow-[0_0_0_1px_var(--color-rule)]"
-            }`}
+            className="min-w-0 rounded-md px-2 pt-1.5 pb-1 shadow-[0_0_0_1px_var(--color-rule)]"
           >
             <h3 className="tnum flex items-baseline justify-between gap-2 pb-0.5 text-[12px]">
               <span className="font-semibold">{g}</span>

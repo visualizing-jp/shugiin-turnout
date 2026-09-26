@@ -5,7 +5,7 @@
  * 投票率では棒の上端が 100% に揃い、濃い部分の高さが投票率になる。人数では棒の高さが有権者数になる。
  */
 
-import { scaleBand, scaleLinear } from "d3-scale";
+import { scaleBand, scaleLinear, type ScaleBand } from "d3-scale";
 import type { Counts } from "../../lib/data/cube.ts";
 import { election, num, pct, year } from "../data/format.ts";
 import { SEX_LABEL, SEX_TONE, pick, rateOf, type Sex, type Turnout } from "../data/sex.ts";
@@ -37,6 +37,32 @@ export interface Mark {
   label: string;
 }
 
+/** 注記の段の高さ（px）。 */
+const MARK_ROW = 12;
+
+/** 注記の文字幅の見積もり（9.5px の字で、全角は1字 9.5px、半角は 5.5px）。 */
+const textWidth = (s: string) => [...s].reduce((w, ch) => w + (ch.charCodeAt(0) < 128 ? 5.5 : 9.5), 0);
+
+/**
+ * 区切りの位置と注記の段を決める。注記は線の右に書き、右端からはみ出すなら左に書く。
+ * 前の注記と重なるなら1段下げる（狭い画面で「並立制」と「18歳選挙権」がつながって読めないように）。
+ */
+function placeMarks(marks: Mark[], band: ScaleBand<number>, width: number) {
+  const rows: number[] = [];
+  return marks.flatMap((m) => {
+    const x0 = band(m.n);
+    if (x0 === undefined) return [];
+    const x = x0 - (band.step() * 0.28) / 2;
+    const w = textWidth(m.label) + 4;
+    const flip = x + w > width;
+    const [left, right] = flip ? [x - w, x] : [x, x + w];
+    let row = rows.findIndex((end) => end + 6 <= left);
+    if (row < 0) row = rows.length;
+    rows[row] = right;
+    return [{ ...m, x, flip, row }];
+  });
+}
+
 /** 棄権者の塗り。墨の薄い層。 */
 const ABSTAIN = "rgba(22, 20, 15, 0.075)";
 
@@ -62,19 +88,22 @@ export function TurnoutBars({
   const M = { left: 56, right: 6, top: 22, bottom: 44 };
   const right = Math.max(M.left + 1, width - M.right);
 
-  const max = Math.max(...columns.flatMap((c) => c.bars?.map((b) => b.electors) ?? []), 1);
-  const y = scaleLinear()
-    .domain([0, measure === "rate" ? 1 : max])
-    .nice(4)
-    .range([height - M.bottom, M.top]);
-  const ticks = y.ticks(4);
-  const tick = (v: number) => (measure === "rate" ? `${Math.round(v * 100)}%` : v === 0 ? "0" : `${num(v / 1e4)}万`);
-
   const band = scaleBand<number>()
     .domain(columns.map((c) => c.n))
     .range([M.left, right])
     .paddingInner(0.28)
     .paddingOuter(0.1);
+
+  const placed = placeMarks(marks, band, width);
+  const top = M.top + (Math.max(1, ...placed.map((m) => m.row + 1)) - 1) * MARK_ROW;
+
+  const max = Math.max(...columns.flatMap((c) => c.bars?.map((b) => b.electors) ?? []), 1);
+  const y = scaleLinear()
+    .domain([0, measure === "rate" ? 1 : max])
+    .nice(4)
+    .range([height - M.bottom, top]);
+  const ticks = y.ticks(4);
+  const tick = (v: number) => (measure === "rate" ? `${Math.round(v * 100)}%` : v === 0 ? "0" : `${num(v / 1e4)}万`);
   const perColumn = Math.max(1, ...columns.map((c) => c.bars?.length ?? 0));
   const gap = perColumn > 1 ? Math.max(1.5, band.bandwidth() * 0.06) : 0;
   const bw = (band.bandwidth() - gap * (perColumn - 1)) / perColumn;
@@ -99,16 +128,12 @@ export function TurnoutBars({
             </g>
           ))}
 
-          {marks.map((m) => {
-            const x0 = band(m.n);
-            if (x0 === undefined) return null;
-            const x = x0 - (band.step() * 0.28) / 2;
-            // 右端に近い区切りは、説明を線の左に書いてはみ出さないようにする。
-            const flip = x > width - 64;
+          {placed.map((m) => {
+            const ty = M.top - 8 + m.row * MARK_ROW;
             return (
               <g key={m.n} className="pointer-events-none">
-                <line x1={x} x2={x} y1={M.top - 14} y2={height - M.bottom} strokeDasharray="2 3" className="stroke-rule-strong" />
-                <text x={flip ? x - 4 : x + 4} y={M.top - 8} textAnchor={flip ? "end" : "start"} className="fill-muted text-[9.5px]">
+                <line x1={m.x} x2={m.x} y1={ty - 6} y2={height - M.bottom} strokeDasharray="2 3" className="stroke-rule-strong" />
+                <text x={m.flip ? m.x - 4 : m.x + 4} y={ty} textAnchor={m.flip ? "end" : "start"} className="fill-muted text-[9.5px]">
                   {m.label}
                 </text>
               </g>
