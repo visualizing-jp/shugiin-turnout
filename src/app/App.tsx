@@ -3,6 +3,7 @@ import { AgeView } from "./views/AgeView.tsx";
 import { EraView } from "./views/EraView.tsx";
 import { PrefView } from "./views/PrefView.tsx";
 import { useUrlState } from "./hooks/useUrlState.ts";
+import { SeriesBar, SeriesFooter } from "./components/Brand.tsx";
 
 const VIEWS = [
   { id: "era", label: "時代", hint: "1946–2026" },
@@ -18,6 +19,7 @@ export function App() {
   return (
     <div className="min-h-dvh">
       <header className="border-b border-rule bg-paper/85 backdrop-blur-sm">
+        <SeriesBar />
         <div className="mx-auto flex w-full max-w-[1240px] flex-wrap items-end justify-between gap-4 px-6 pt-5">
           <div className="pb-2">
             <h1 className="text-[15px] font-semibold tracking-tight">衆議院選挙で、どれだけの人が投票したか</h1>
@@ -65,10 +67,8 @@ export function App() {
           >
             衆議院選挙で、誰が立候補し、誰が当選したか
           </a>
-          <a href="https://visualizing.jp/" className="w-fit transition-colors duration-150 hover:text-muted">
-            visualizing.jp
-          </a>
         </span>
+        <SeriesFooter />
       </footer>
     </div>
   );
